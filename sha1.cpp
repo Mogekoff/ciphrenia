@@ -8,11 +8,11 @@ using namespace std;
 #define byte unsigned char
 
 //Константы
-int32 A = 0x67452301;
-int32 B = 0xEFCDAB89;
-int32 C = 0x98BADCFE;
-int32 D = 0x10325476;
-int32 E = 0xC3D2E1F0;
+int32 A;
+int32 B;
+int32 C;
+int32 D;
+int32 E;
 
 //Функция цикл. сдвига влево. x - аргумент, n - сдвиг
 int32 shiftLeft(int32 x, int32 n) {
@@ -41,38 +41,38 @@ void adding1byte(vector<byte>& buf) {
 int32* conv512to80(vector<byte>& buf, int offset) {
     int32* words = new int32[80];
 
-    for (auto i = 0; i<16; i++) {
+    for (auto i = 0; i < 16; i++) {
         words[i] = 0;
-        words[i] += int32(buf[4*i + offset]) << 24;
-        words[i] += int32(buf[4*i + 1 + offset]) << 16;
-        words[i] += int32(buf[4*i + 2 + offset]) << 8;
-        words[i] += int32(buf[4*i + 3 + offset]);
+        words[i] += int32(buf[4 * i + offset]) << 24;
+        words[i] += int32(buf[4 * i + 1 + offset]) << 16;
+        words[i] += int32(buf[4 * i + 2 + offset]) << 8;
+        words[i] += int32(buf[4 * i + 3 + offset]);
     }
-    for (auto i = 16; i < 80; i++) 
-        words[i] = shiftLeft(words[i - 3] ^ words[i - 8] ^ words[i - 14] ^ words[i - 16],1);
-    
+    for (auto i = 16; i < 80; i++)
+        words[i] = shiftLeft(words[i - 3] ^ words[i - 8] ^ words[i - 14] ^ words[i - 16], 1);
+
     return words;
 }
 
 //Ф-я вычисления раундов
-void calcBlocks(int32* buf){  
-    int32 i,k,f; 
-    int32 a=A,b=B,c=C,d=D,e=E;
+void calcBlocks(int32* buf) {
+    int32 i, k, f;
+    int32 a = A, b = B, c = C, d = D, e = E;
     for (i = 0; i < 80; i++) {
-        if(i<20) {
-            f = (b&c) | ((~b)&d);
-            k= 0x5A827999;
+        if (i < 20) {
+            f = (b & c) | ((~b) & d);
+            k = 0x5A827999;
         }
-        else if(i<40) {
-            f = b^c^d;
+        else if (i < 40) {
+            f = b ^ c ^ d;
             k = 0x6ED9EBA1;
         }
-        else if(i<60){
-            f = (b&c)|(b&d)|(c&d);
+        else if (i < 60) {
+            f = (b & c) | (b & d) | (c & d);
             k = 0x8F1BBCDC;
         }
         else {
-            f = b^c^d;
+            f = b ^ c ^ d;
             k = 0xCA62C1D6;
         }
         int32 temp = shiftLeft(a, 5) + f + e + k + buf[i];
@@ -112,9 +112,16 @@ string sha1(const string msg) {
     addingNulls(buf);
     //Записываем длину сообщения размером 64 бит до выравнивания в блок 512 бит
     addingLenght(buf, len);
+    //Инициализируем константы
+    A = 0x67452301;
+    B = 0xEFCDAB89;
+    C = 0x98BADCFE;
+    D = 0x10325476;
+    E = 0xC3D2E1F0;
+    
     //Преобразуем блок 512 бит в массив из 80 слов по 32 бита и начинаем вычислять раунды
-    for(auto offset = 0; offset < buf.size(); offset+=64)
-        calcBlocks(conv512to80(buf,offset));
+    for (auto offset = 0; offset < buf.size(); offset += 64)
+        calcBlocks(conv512to80(buf, offset));
 
     //Возвращаем конк. строк 16-чных представлений чисел
     return hex(A) + hex(B) + hex(C) + hex(D) + hex(E);

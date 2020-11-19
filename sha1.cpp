@@ -1,52 +1,60 @@
 #include <iostream>
-#include <iomanip>
-#include <sstream>
-#include <vector>
 using namespace std;
-#define int32 unsigned int
-#define int64 unsigned long long
-#define byte unsigned char
+
+struct buffer {
+    uint8_t* array;
+    int size = 0;
+    void push_back(uint8_t elem) {
+        auto* new_array = new uint8_t[size+1];
+        for(auto i = 0; i<size; i++)
+            new_array[i]=array[i];
+        new_array[size]=elem;
+        delete[] array;
+        array=new_array;
+        size++;
+    }
+};
 
 //Константы
-int32 A;
-int32 B;
-int32 C;
-int32 D;
-int32 E;
+uint32_t A;
+uint32_t B;
+uint32_t C;
+uint32_t D;
+uint32_t E;
 
 //Функция цикл. сдвига влево. x - аргумент, n - сдвиг
-int32 shiftLeft(int32 x, int32 n) {
+uint32_t shiftLeft(uint32_t x, uint32_t n) {
     return (x << n) | (x >> (32 - n));
 }
 
 //Ф-я добавления длины сообщения
-void addingLenght(vector<byte>& buf, const int64 len) {
+void addingLenght(buffer& buf, const uint64_t len) {
     for (auto i = 7; i >= 0; i--)
-        buf.push_back(byte((len >> (i * 8)) & 0xFF));
+        buf.push_back(uint8_t((len >> (i * 8)) & 0xFF));
 }
 
 //Ф-я дополнения сообщения нулями
-void addingNulls(vector<byte>& buf) {
+void addingNulls(buffer& buf) {
     do
         buf.push_back(0);
-    while (buf.size() % 64 != 56);
+    while (buf.size % 64 != 56);
 }
 
 //Ф-я добавления единичного байта
-void adding1byte(vector<byte>& buf) {
+void adding1byte(buffer& buf) {
     buf.push_back(128);   //128 = 1000 0000
 }
 
 //Ф-я конвертирования 512 битного блока сооб-я в 80 слов по 32 бита
-int32* conv512to80(vector<byte>& buf, int offset) {
-    int32* words = new int32[80];
+uint32_t* conv512to80(buffer& buf, int offset) {
+    uint32_t* words = new uint32_t[80];
 
     for (auto i = 0; i < 16; i++) {
         words[i] = 0;
-        words[i] += int32(buf[4 * i + offset]) << 24;
-        words[i] += int32(buf[4 * i + 1 + offset]) << 16;
-        words[i] += int32(buf[4 * i + 2 + offset]) << 8;
-        words[i] += int32(buf[4 * i + 3 + offset]);
+        words[i] += uint32_t(buf.array[4 * i + offset]) << 24;
+        words[i] += uint32_t(buf.array[4 * i + 1 + offset]) << 16;
+        words[i] += uint32_t(buf.array[4 * i + 2 + offset]) << 8;
+        words[i] += uint32_t(buf.array[4 * i + 3 + offset]);
     }
     for (auto i = 16; i < 80; i++)
         words[i] = shiftLeft(words[i - 3] ^ words[i - 8] ^ words[i - 14] ^ words[i - 16], 1);
@@ -55,9 +63,9 @@ int32* conv512to80(vector<byte>& buf, int offset) {
 }
 
 //Ф-я вычисления раундов
-void calcBlocks(int32* buf) {
-    int32 i, k, f;
-    int32 a = A, b = B, c = C, d = D, e = E;
+void calcBlocks(uint32_t* buf) {
+    uint32_t i, k, f;
+    uint32_t a = A, b = B, c = C, d = D, e = E;
     for (i = 0; i < 80; i++) {
         if (i < 20) {
             f = (b & c) | ((~b) & d);
@@ -75,7 +83,7 @@ void calcBlocks(int32* buf) {
             f = b ^ c ^ d;
             k = 0xCA62C1D6;
         }
-        int32 temp = shiftLeft(a, 5) + f + e + k + buf[i];
+        uint32_t temp = shiftLeft(a, 5) + f + e + k + buf[i];
         e = d;
         d = c;
         c = shiftLeft(b, 30);
@@ -87,22 +95,25 @@ void calcBlocks(int32* buf) {
     C += c;
     D += d;
     E += e;
+    delete[] buf;
 }
 
-//Ф-я вывода хеша
-string hex(int32 num) {
-    stringstream stream;
-    stream << setfill('0') << std::setw(8) << hex << num;
-    return stream.str();
+string hex(uint32_t num){
+    char hex_string[8];
+    sprintf(hex_string,"%08X", num);
+    return hex_string;
 }
 
 //Основная ф-я, вызывающая вспомогательные
 string sha1(const string msg) {
-    int64 len = msg.length();
+    uint64_t len = msg.length();
 
-    vector<byte> buf(len);
+    buffer buf;
+    buf.array = new uint8_t[len];
+    buf.size = len;
+
     for (auto i = 0; i < len; i++)
-        buf[i] = msg[i];
+        buf.array[i] = msg[i];
 
     len *= 8; //Размер сообщения в битах
 
@@ -118,14 +129,15 @@ string sha1(const string msg) {
     C = 0x98BADCFE;
     D = 0x10325476;
     E = 0xC3D2E1F0;
-    
-    //Преобразуем блок 512 бит в массив из 80 слов по 32 бита и начинаем вычислять раунды
-    for (auto offset = 0; offset < buf.size(); offset += 64)
-        calcBlocks(conv512to80(buf, offset));
 
+    //Преобразуем блок 512 бит в массив из 80 слов по 32 бита и начинаем вычислять раунды
+    for (auto offset = 0; offset < buf.size; offset += 64)
+        calcBlocks(conv512to80(buf, offset));
+    delete[] buf.array;
     //Возвращаем конк. строк 16-чных представлений чисел
-    return hex(A) + hex(B) + hex(C) + hex(D) + hex(E);
+    return hex(A)+hex(B)+hex(C)+hex(D)+hex(E);
 }
+
 
 int main(int argc, char* argv[])
 {
